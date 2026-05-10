@@ -2,6 +2,14 @@
 
 An AI-powered learning application that creates personalized, multi-step explanations for any topic. It builds a structured learning path, maintains a dynamic model of the learner's knowledge, adapts explanations in real time, and lets users ask follow-up questions at any point during a lesson.
 
+**▶ Live demo: [adaptive-explainer.vercel.app](https://adaptive-explainer.vercel.app)**
+
+![Topic entry — type any topic, pick a model.](docs/screenshots/01-landing.png)
+
+![Step 1 of a lesson. The right sidebar shows the live learning path and the system's current model of the learner.](docs/screenshots/02-lesson.png)
+
+![After a follow-up question the user model updates — confidence climbs from 30% to 55%, vocabulary shifts to "technical", and concrete known concepts and gaps appear.](docs/screenshots/03-question.png)
+
 ## Features
 
 - **Personalized learning paths** — the AI generates a 5-step curriculum (foundation → core → intermediate → advanced) tailored to any topic you enter
