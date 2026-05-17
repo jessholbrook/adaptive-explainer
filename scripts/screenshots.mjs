@@ -11,7 +11,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.join(__dirname, "..", "docs", "screenshots");
 const URL = process.env.URL ?? "https://adaptive-explainer.vercel.app";
 const TOPIC = process.env.TOPIC ?? "How does HTTPS work?";
-const MODEL = process.env.MODEL ?? "claude-haiku-4-5";
+// shadcn/Base UI Select is not a native <select> — pick by visible label.
+const MODEL_LABEL = process.env.MODEL_LABEL ?? "Claude Haiku 4.5";
 
 async function main() {
   const browser = await chromium.launch();
@@ -31,9 +32,10 @@ async function main() {
   });
   console.log("✓ 01-landing.png");
 
-  // 2) Enter a topic and select model
-  await page.fill('input[placeholder*="HTTPS"]', TOPIC);
-  await page.selectOption("select", MODEL);
+  // 2) Enter a topic and pick a model (Base UI Select: click trigger → option)
+  await page.fill("#topic", TOPIC);
+  await page.click("#model");
+  await page.getByRole("option", { name: MODEL_LABEL, exact: true }).click();
   await page.click('button:has-text("Start Learning")');
 
   // Wait for the lesson view to render — the "Got it" button appears after the
@@ -50,7 +52,7 @@ async function main() {
 
   // 4) Ask a question to populate the model panel, then capture again
   await page.fill(
-    'input[placeholder*="question"]',
+    'input[placeholder*="question" i]',
     "Whats the difference between SSL and TLS?",
   );
   await page.click('button:has-text("Ask")');

@@ -8,7 +8,7 @@ An AI-powered learning application that creates personalized, multi-step explana
 
 ![Step 1 of a lesson. The right sidebar shows the live learning path and the system's current model of the learner.](docs/screenshots/02-lesson.png)
 
-![After a follow-up question the user model updates — confidence climbs from 30% to 55%, vocabulary shifts to "technical", and concrete known concepts and gaps appear.](docs/screenshots/03-question.png)
+![After a follow-up question the user model updates — confidence rises and the concepts the question revealed are added to the sidebar.](docs/screenshots/03-question.png)
 
 ## Features
 
