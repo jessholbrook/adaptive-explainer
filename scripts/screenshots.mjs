@@ -1,4 +1,5 @@
 // Capture marketing screenshots of the deployed app.
+// One-time setup: npm i -D playwright && npx playwright install chromium
 // Run with: node scripts/screenshots.mjs
 // Outputs PNG files to docs/screenshots/.
 
