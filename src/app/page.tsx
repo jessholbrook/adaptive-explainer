@@ -159,18 +159,22 @@ export default function Page() {
 
   if (!session) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-4">
+      <main className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-xl mb-8 text-center">
+          <h1 className="text-5xl font-normal tracking-tight text-foreground">
+            Adaptive Explainer
+          </h1>
+          <p className="mt-4 text-base text-muted-foreground">
+            Type a topic and an AI tutor will build a 5-step lesson tailored to
+            what you know.
+          </p>
+        </div>
         <Card className="w-full max-w-xl">
-          <CardHeader>
-            <CardTitle className="text-3xl">Adaptive Explainer</CardTitle>
-            <CardDescription className="text-base">
-              Type a topic and an AI tutor will build a 5-step lesson tailored to
-              what you know.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-6 pt-2">
             <div className="space-y-2">
-              <Label htmlFor="topic">Topic</Label>
+              <Label htmlFor="topic" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Topic
+              </Label>
               <Input
                 id="topic"
                 value={topic}
@@ -183,7 +187,9 @@ export default function Page() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="model">Model</Label>
+              <Label htmlFor="model" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Model
+              </Label>
               <Select
                 value={selectedModel}
                 onValueChange={(v) => setSelectedModel(String(v))}
@@ -226,59 +232,72 @@ export default function Page() {
   const currentQA = qaHistory[session.currentStepIndex] ?? [];
 
   return (
-    <main className="min-h-screen px-4 py-8">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+    <main className="min-h-screen">
+      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/60 px-6 py-3">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          <h1 className="text-lg font-medium tracking-tight">Adaptive Explainer</h1>
+          <Button variant="ghost" size="sm" onClick={reset}>
+            New topic
+          </Button>
+        </div>
+      </header>
+      <div className="max-w-6xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         <Card>
           <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Topic</p>
-                <CardTitle className="text-2xl">{session.topic}</CardTitle>
-              </div>
-              <Button variant="ghost" size="sm" onClick={reset}>
-                New topic
-              </Button>
-            </div>
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Topic
+            </p>
+            <CardTitle className="text-3xl">{session.topic}</CardTitle>
           </CardHeader>
           <CardContent>
             {allDone ? (
-              <div className="text-center py-12">
-                <h2 className="text-2xl font-semibold mb-3">Lesson complete.</h2>
-                <p className="text-muted-foreground mb-6">
+              <div className="text-center py-16">
+                <h2 className="text-3xl font-normal mb-3 tracking-tight">
+                  Lesson complete.
+                </h2>
+                <p className="text-muted-foreground mb-8">
                   You worked through all five steps. Try another topic.
                 </p>
-                <Button onClick={reset}>Start a new lesson</Button>
+                <Button size="lg" onClick={reset}>
+                  Start a new lesson
+                </Button>
               </div>
             ) : (
               <>
-                <div className="mb-6">
-                  <p className="text-sm font-medium text-primary">
+                <div className="mb-6 flex items-center gap-3">
+                  <Badge>
                     Step {session.currentStepIndex + 1} of{" "}
-                    {session.learningPath.length} · {currentStep.complexity}
-                  </p>
-                  <h2 className="text-xl font-semibold mt-1">
-                    {currentStep.title}
-                  </h2>
+                    {session.learningPath.length}
+                  </Badge>
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                    {currentStep.complexity}
+                  </span>
                 </div>
+                <h2 className="text-2xl font-medium tracking-tight mb-6">
+                  {currentStep.title}
+                </h2>
 
                 {status === "explaining" || status === "simplifying" ? (
-                  <div className="text-muted-foreground">
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <span className="inline-block size-2 rounded-full bg-primary animate-pulse" />
                     {status === "simplifying"
                       ? "Re-explaining more simply…"
                       : "Generating explanation…"}
                   </div>
                 ) : currentStep.content ? (
-                  <article className="max-w-none mb-6 whitespace-pre-wrap leading-relaxed">
+                  <article className="max-w-none mb-6 whitespace-pre-wrap leading-relaxed text-[15px]">
                     {currentStep.content}
                   </article>
                 ) : null}
 
                 {currentQA.length > 0 && (
-                  <div className="mt-6 space-y-4 border-t pt-6">
+                  <div className="mt-8 space-y-5 border-t border-border pt-6">
                     {currentQA.map((qa, i) => (
-                      <div key={i}>
-                        <p className="text-sm font-medium">You: {qa.question}</p>
-                        <p className="text-muted-foreground mt-1 whitespace-pre-wrap">
+                      <div key={i} className="space-y-2">
+                        <div className="inline-block rounded-2xl rounded-br-md bg-secondary px-4 py-2 text-sm text-secondary-foreground">
+                          {qa.question}
+                        </div>
+                        <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed">
                           {qa.answer}
                         </p>
                       </div>
@@ -287,7 +306,7 @@ export default function Page() {
                 )}
 
                 <div className="mt-8 space-y-3">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
                     <Input
                       value={questionInput}
                       onChange={(e) => setQuestionInput(e.target.value)}
@@ -298,14 +317,16 @@ export default function Page() {
                       }}
                     />
                     <Button
+                      size="lg"
                       onClick={() => void askQuestion()}
                       disabled={!questionInput.trim() || status !== "idle"}
                     >
                       {status === "asking" ? "Asking…" : "Ask"}
                     </Button>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-2">
                     <Button
+                      size="lg"
                       variant="outline"
                       className="flex-1"
                       onClick={() => session && void loadExplanation(session, true)}
@@ -314,6 +335,7 @@ export default function Page() {
                       Make it simpler
                     </Button>
                     <Button
+                      size="lg"
                       className="flex-1"
                       onClick={advanceStep}
                       disabled={status !== "idle" || !currentStep.content}
@@ -331,57 +353,87 @@ export default function Page() {
           </CardContent>
         </Card>
 
-        <aside className="space-y-4">
+        <aside className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Learning path</CardTitle>
+              <CardTitle className="text-base">Learning path</CardTitle>
             </CardHeader>
             <CardContent>
-              <ol className="space-y-2 text-sm">
-                {session.learningPath.map((step, idx) => (
-                  <li
-                    key={step.id}
-                    className={`flex items-start gap-2 ${
-                      idx === session.currentStepIndex
-                        ? "text-primary font-medium"
-                        : step.completed
-                        ? "text-muted-foreground line-through"
-                        : "text-foreground"
-                    }`}
-                  >
-                    <span className="text-xs mt-0.5">{idx + 1}.</span>
-                    <span>{step.title}</span>
-                  </li>
-                ))}
+              <ol className="space-y-1 text-sm -mx-2">
+                {session.learningPath.map((step, idx) => {
+                  const isCurrent = idx === session.currentStepIndex;
+                  const isDone = step.completed;
+                  return (
+                    <li
+                      key={step.id}
+                      className={`flex items-center gap-3 rounded-full px-3 py-2 transition-colors ${
+                        isCurrent
+                          ? "bg-secondary text-secondary-foreground"
+                          : isDone
+                          ? "text-muted-foreground"
+                          : "text-foreground"
+                      }`}
+                    >
+                      <span
+                        className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
+                          isCurrent
+                            ? "bg-primary text-primary-foreground"
+                            : isDone
+                            ? "bg-muted text-muted-foreground"
+                            : "border border-input text-muted-foreground"
+                        }`}
+                      >
+                        {isDone ? "✓" : idx + 1}
+                      </span>
+                      <span className={isDone ? "line-through" : ""}>
+                        {step.title}
+                      </span>
+                    </li>
+                  );
+                })}
               </ol>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Your model</CardTitle>
+              <CardTitle className="text-base">Your model</CardTitle>
             </CardHeader>
             <CardContent>
-              <dl className="space-y-2 text-sm">
+              <div className="mb-5">
+                <div className="flex justify-between items-baseline mb-1.5">
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                    Confidence
+                  </span>
+                  <span className="text-sm font-medium">
+                    {Math.round(session.userModel.confidence * 100)}%
+                  </span>
+                </div>
+                <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{
+                      width: `${Math.round(session.userModel.confidence * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <dl className="space-y-2.5 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Level</dt>
-                  <dd>{session.userModel.level}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Confidence</dt>
-                  <dd>{Math.round(session.userModel.confidence * 100)}%</dd>
+                  <dd className="font-medium">{session.userModel.level}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Vocabulary</dt>
-                  <dd>{session.userModel.vocabularyLevel}</dd>
+                  <dd className="font-medium">{session.userModel.vocabularyLevel}</dd>
                 </div>
               </dl>
               {session.userModel.knownConcepts.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-xs text-muted-foreground mb-1.5">
+                <div className="mt-5">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
                     Known concepts
                   </p>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {session.userModel.knownConcepts.map((c) => (
                       <Badge key={c}>{c}</Badge>
                     ))}
@@ -389,15 +441,13 @@ export default function Page() {
                 </div>
               )}
               {session.userModel.gapConcepts.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-xs text-muted-foreground mb-1.5">Gaps</p>
-                  <div className="flex flex-wrap gap-1">
+                <div className="mt-4">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                    Gaps
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
                     {session.userModel.gapConcepts.map((c) => (
-                      <Badge
-                        key={c}
-                        variant="outline"
-                        className="border-amber-300 text-amber-700"
-                      >
+                      <Badge key={c} variant="outline">
                         {c}
                       </Badge>
                     ))}

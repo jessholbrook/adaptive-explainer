@@ -35,7 +35,7 @@ An AI-powered learning application that creates personalized, multi-step explana
 src/
 ├── app/
 │   ├── page.tsx              # Single-page React client (topic input + learning UI)
-│   ├── layout.tsx            # Root layout with Inter font and metadata
+│   ├── layout.tsx            # Root layout with Roboto font and metadata
 │   ├── globals.css           # Tailwind base styles
 │   └── api/
 │       ├── start/route.ts    # POST — generates a 5-step learning path (JSON)
@@ -131,7 +131,7 @@ All prompts live in `prompts.ts` and follow a consistent pattern: they inject th
 
 - **[Next.js 14](https://nextjs.org/)** — App Router with React Server Components for API routes and a single client-side page
 - **[TypeScript](https://www.typescriptlang.org/)** — end-to-end type safety across client, API routes, and LLM interfaces
-- **[Tailwind CSS](https://tailwindcss.com/)** — utility-first styling with a clean slate/emerald design system
+- **[Tailwind CSS](https://tailwindcss.com/)** — utility-first styling, themed with a Material Design 3 (Material You) tonal color system
 - **[Anthropic SDK](https://github.com/anthropics/anthropic-sdk-typescript)** — Claude model integration via `@anthropic-ai/sdk`
 - **[OpenAI SDK](https://github.com/openai/openai-node)** — GPT model integration via `openai`
 
