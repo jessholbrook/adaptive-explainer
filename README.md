@@ -16,14 +16,16 @@ An AI-powered learning application that creates personalized, multi-step explana
 - **Adaptive user knowledge model** — the system maintains a live model of your inferred level, confidence score, known concepts, knowledge gaps, and vocabulary preference, updating it after every interaction
 - **Follow-up questions** — ask anything mid-lesson; the AI answers in context and updates its model of what you know based on what your question reveals
 - **"Make it simpler"** — request a simpler re-explanation at any time, which automatically lowers the inferred level and switches to everyday analogies
-- **Multi-model support** — switch between Claude (Opus 4.7, Sonnet 4.6, Haiku 4.5) and OpenAI (GPT-4o, GPT-4 Turbo, GPT-3.5 Turbo) models on the fly
-- **Rate limiting** — built-in per-IP rate limiting (50 sessions) to protect API usage in shared deployments
+- **Streaming explanations** — explanation text renders token-by-token as the model produces it
+- **Session persistence** — the lesson survives page refreshes via localStorage
+- **Multi-model support** — switch between Claude (Opus 4.8, Sonnet 5, Haiku 4.5) and OpenAI (GPT-4o, GPT-4o mini) models on the fly
+- **Rate limiting** — per-IP sliding-window limits (50 lessons and 400 LLM requests per 24h) to protect API usage in shared deployments
 
 ## How It Works
 
 1. **Topic entry** — The user types any topic (e.g., "How does HTTPS work?") and selects an AI model.
 2. **Learning path generation** — The `/api/start` endpoint sends a structured prompt to the chosen model, which returns a 5-step JSON curriculum with complexity levels and prerequisite chains.
-3. **Step-by-step explanation** — The `/api/explain` endpoint generates an explanation for the current step, injecting the user's knowledge model into the prompt so the output matches their level and vocabulary preference.
+3. **Step-by-step explanation** — The `/api/explain` endpoint streams an explanation for the current step, injecting the user's knowledge model and their recent questions into the prompt so the output matches their level and vocabulary preference.
 4. **Question analysis** — When the user asks a question, the `/api/question` endpoint sends the question along with the current knowledge model to the AI. The AI returns both an answer and an updated knowledge model (level, confidence, known/gap concepts), which the frontend merges into the session state.
 5. **Simplification** — Clicking "Make it simpler" triggers a specialized prompt that rewrites the current explanation using everyday analogies, shorter sentences, and no jargon.
 6. **Progression** — Marking a step as understood advances the learner to the next step, increments the confidence score, and loads a new explanation adapted to their updated model.
@@ -44,9 +46,11 @@ src/
 │       └── status/route.ts   # GET  — returns available models and rate-limit info
 └── lib/
     ├── types.ts              # TypeScript interfaces (LearningStep, UserKnowledgeModel, etc.)
-    ├── llm.ts                # Unified LLM client (Anthropic + OpenAI), JSON parser
+    ├── llm.ts                # Unified LLM client (Anthropic + OpenAI), streaming, JSON parser
     ├── prompts.ts            # All prompt templates (learning path, explanation, question, simpler)
-    └── rateLimit.ts          # In-memory per-IP rate limiter
+    ├── userModel.ts          # Knowledge-model merge logic (validated, clamped, deduplicated)
+    ├── validate.ts           # Request validation: model allowlist + session size/shape checks
+    └── rateLimit.ts          # In-memory per-IP sliding-window rate limiter
 ```
 
 
@@ -65,12 +69,12 @@ src/
 |---|---|---|
 | `/api/status` | `GET` | Returns available models (Claude + OpenAI) and the caller's rate-limit status |
 | `/api/start` | `POST` | Accepts `{ topic, model }`, generates a 5-step learning path via the LLM, initializes a default user model, and returns the full session object |
-| `/api/explain` | `POST` | Accepts `{ session, model, simpler? }`, generates a level-adapted explanation for the current step (or a simplified re-explanation if `simpler` is true) |
+| `/api/explain` | `POST` | Accepts `{ session, model, simpler? }`, streams a level-adapted explanation for the current step as plain text (or a simplified re-explanation if `simpler` is true) |
 | `/api/question` | `POST` | Accepts `{ session, question, model }`, returns `{ answer, updatedModel }` — the AI's answer plus a revised knowledge model reflecting what the question revealed |
 
 ### LLM Abstraction
 
-The `llm.ts` module provides a single `queryModel(modelId, userPrompt, systemPrompt)` function that routes to the Anthropic or OpenAI SDK based on the model ID prefix. Both clients are lazily initialized. A `parseJSON<T>()` helper extracts and parses JSON from free-text LLM responses. Anthropic calls use prompt caching on the system prompt to keep repeated-context costs down across the session.
+The `llm.ts` module provides `queryModel(modelId, userPrompt, systemPrompt)` for complete responses and `streamModel(...)` for token-by-token streaming; both route to the Anthropic or OpenAI SDK based on the model ID prefix. Both clients are lazily initialized. A `parseJSON<T>()` helper extracts and parses JSON from free-text LLM responses. Every route validates the requested model against the `AVAILABLE_MODELS` allowlist and size-checks all client-supplied input before any LLM call.
 
 ### Prompt Engineering
 
@@ -114,6 +118,14 @@ All prompts live in `prompts.ts` and follow a consistent pattern: they inject th
    ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Tests
+
+Unit tests (Vitest) cover the JSON parser, rate limiter, request validation, and knowledge-model merge logic:
+
+```bash
+npm test
+```
 
 ## Usage
 

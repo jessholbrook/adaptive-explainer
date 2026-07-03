@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LearningSession, ModelInfo, UserKnowledgeModel } from "@/lib/types";
+import { simplerAdjustment } from "@/lib/userModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,8 @@ interface QAPair {
   answer: string;
 }
 
+const STORAGE_KEY = "adaptive-explainer-v1";
+
 export default function Page() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [topic, setTopic] = useState("");
@@ -37,6 +40,39 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const [questionInput, setQuestionInput] = useState("");
   const [qaHistory, setQaHistory] = useState<Record<number, QAPair[]>>({});
+  const hadSession = useRef(false);
+
+  // Restore a saved session so an accidental refresh doesn't lose the lesson.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          session?: LearningSession;
+          qaHistory?: Record<number, QAPair[]>;
+        };
+        if (saved.session?.learningPath?.length) {
+          setSession(saved.session);
+          setQaHistory(saved.qaHistory ?? {});
+        }
+      }
+    } catch {
+      // Corrupted saved state — start fresh.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (session) {
+        hadSession.current = true;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ session, qaHistory }));
+      } else if (hadSession.current) {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      // Storage full or unavailable — persistence is best-effort.
+    }
+  }, [session, qaHistory]);
 
   useEffect(() => {
     void fetch("/api/status")
@@ -78,16 +114,48 @@ export default function Page() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session: s, model: s.model, simpler }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to explain");
-      const updated: LearningSession = {
-        ...s,
-        userModel: data.updatedModel,
-        learningPath: s.learningPath.map((step, idx) =>
-          idx === s.currentStepIndex ? { ...step, content: data.explanation } : step,
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to explain");
+      }
+      if (!res.body) throw new Error("No response stream");
+
+      // The "simpler" model shift is deterministic, so it's applied here
+      // rather than round-tripped through the server.
+      const base: LearningSession = simpler
+        ? {
+            ...s,
+            userModel: simplerAdjustment(s.userModel),
+            history: [
+              ...s.history,
+              {
+                type: "simpler",
+                stepId: s.currentStepIndex,
+                content: s.learningPath[s.currentStepIndex]?.title ?? "",
+                timestamp: Date.now(),
+              },
+            ],
+          }
+        : s;
+      const withContent = (content: string): LearningSession => ({
+        ...base,
+        learningPath: base.learningPath.map((step, idx) =>
+          idx === base.currentStepIndex ? { ...step, content } : step,
         ),
-      };
-      setSession(updated);
+      });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let text = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+        setSession(withContent(text));
+      }
+      text += decoder.decode();
+      if (!text.trim()) throw new Error("Empty explanation — please try again.");
+      setSession(withContent(text));
       setStatus("idle");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to explain");
@@ -114,7 +182,14 @@ export default function Page() {
         ...prev,
         [stepId]: [...(prev[stepId] ?? []), { question: q, answer: data.answer }],
       }));
-      setSession({ ...session, userModel: data.updatedModel });
+      setSession({
+        ...session,
+        userModel: data.updatedModel,
+        history: [
+          ...session.history,
+          { type: "question", stepId, content: q, timestamp: Date.now() },
+        ],
+      });
       setStatus("idle");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to answer");
@@ -132,21 +207,26 @@ export default function Page() {
       ...session.userModel,
       confidence: Math.min(1, session.userModel.confidence + 0.1),
     };
-    if (nextIndex >= session.learningPath.length) {
-      setSession({
-        ...session,
-        learningPath: updatedPath,
-        userModel: updatedModel,
-        currentStepIndex: nextIndex,
-      });
-      return;
-    }
+    const history = [
+      ...session.history,
+      {
+        type: "advance" as const,
+        stepId: session.currentStepIndex,
+        content: session.learningPath[session.currentStepIndex]?.title ?? "",
+        timestamp: Date.now(),
+      },
+    ];
     const advanced: LearningSession = {
       ...session,
       learningPath: updatedPath,
       userModel: updatedModel,
       currentStepIndex: nextIndex,
+      history,
     };
+    if (nextIndex >= session.learningPath.length) {
+      setSession(advanced);
+      return;
+    }
     void loadExplanation(advanced, false);
   }
 
@@ -182,7 +262,7 @@ export default function Page() {
                 placeholder="e.g. How does HTTPS work?"
                 disabled={status === "starting"}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void startLearning();
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) void startLearning();
                 }}
               />
             </div>
@@ -277,7 +357,8 @@ export default function Page() {
                   {currentStep.title}
                 </h2>
 
-                {status === "explaining" || status === "simplifying" ? (
+                {(status === "explaining" || status === "simplifying") &&
+                !currentStep.content ? (
                   <div className="flex items-center gap-3 text-muted-foreground">
                     <span className="inline-block size-2 rounded-full bg-primary animate-pulse" />
                     {status === "simplifying"
@@ -287,7 +368,19 @@ export default function Page() {
                 ) : currentStep.content ? (
                   <article className="max-w-none mb-6 whitespace-pre-wrap leading-relaxed text-[15px]">
                     {currentStep.content}
+                    {(status === "explaining" || status === "simplifying") && (
+                      <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-primary/60 align-baseline" />
+                    )}
                   </article>
+                ) : status === "idle" ? (
+                  <div className="py-6">
+                    <Button
+                      variant="outline"
+                      onClick={() => void loadExplanation(session, false)}
+                    >
+                      Generate explanation
+                    </Button>
+                  </div>
                 ) : null}
 
                 {currentQA.length > 0 && (
@@ -313,7 +406,7 @@ export default function Page() {
                       placeholder="Ask a question about this step…"
                       disabled={status !== "idle"}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") void askQuestion();
+                        if (e.key === "Enter" && !e.nativeEvent.isComposing) void askQuestion();
                       }}
                     />
                     <Button

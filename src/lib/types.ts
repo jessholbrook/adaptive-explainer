@@ -43,12 +43,11 @@ export interface ModelInfo {
 }
 
 export const AVAILABLE_MODELS: ModelInfo[] = [
-  { id: "claude-opus-4-7", label: "Claude Opus 4.7", provider: "anthropic" },
-  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", provider: "anthropic" },
+  { id: "claude-opus-4-8", label: "Claude Opus 4.8", provider: "anthropic" },
+  { id: "claude-sonnet-5", label: "Claude Sonnet 5", provider: "anthropic" },
   { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", provider: "anthropic" },
   { id: "gpt-4o", label: "GPT-4o", provider: "openai" },
-  { id: "gpt-4-turbo", label: "GPT-4 Turbo", provider: "openai" },
-  { id: "gpt-3.5-turbo", label: "GPT-3.5 Turbo", provider: "openai" },
+  { id: "gpt-4o-mini", label: "GPT-4o mini", provider: "openai" },
 ];
 
 export const DEFAULT_USER_MODEL: UserKnowledgeModel = {

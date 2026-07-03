@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import { parseJSON, queryModel } from "@/lib/llm";
 import type { LearningSession, UserKnowledgeModel } from "@/lib/types";
 import { QUESTION_SYSTEM, buildQuestionAnalysisPrompt } from "@/lib/prompts";
+import { getClientIp, tryConsumeRequest } from "@/lib/rateLimit";
+import { MAX_QUESTION_LENGTH, isValidModel, sessionError } from "@/lib/validate";
+import { mergeUserModel } from "@/lib/userModel";
+
+export const maxDuration = 60;
 
 interface QuestionResponse {
   answer: string;
-  modelUpdate: UserKnowledgeModel;
+  modelUpdate: Partial<UserKnowledgeModel>;
 }
 
 export async function POST(request: Request) {
@@ -16,64 +21,65 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { session, question, model } = body;
-  if (!session || !question?.trim() || !model) {
+  const { session } = body;
+  const question = body.question?.trim();
+  if (!question || question.length > MAX_QUESTION_LENGTH) {
     return NextResponse.json(
-      { error: "session, question, and model are required" },
+      { error: `question is required (max ${MAX_QUESTION_LENGTH} characters)` },
       { status: 400 },
     );
   }
+  if (!isValidModel(body.model)) {
+    return NextResponse.json({ error: "Unknown model" }, { status: 400 });
+  }
+  const model = body.model;
+  const invalid = sessionError(session);
+  if (invalid) {
+    return NextResponse.json({ error: `Invalid session: ${invalid}` }, { status: 400 });
+  }
 
-  const step = session.learningPath[session.currentStepIndex];
+  const step = session!.learningPath[session!.currentStepIndex];
   if (!step) {
     return NextResponse.json({ error: "Invalid step index" }, { status: 400 });
   }
 
+  // Consume rate-limit budget only for requests that reach the LLM.
+  const limit = tryConsumeRequest(getClientIp(request));
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Request limit reached for this IP. Try again in 24 hours." },
+      { status: 429 },
+    );
+  }
+
   try {
+    const priorQuestions = (session!.history ?? [])
+      .filter((h) => h.type === "question")
+      .slice(-5)
+      .map((h) => h.content);
     const raw = await queryModel(
       model,
-      buildQuestionAnalysisPrompt(session.topic, step.title, question, session.userModel),
+      buildQuestionAnalysisPrompt(
+        session!.topic,
+        step.title,
+        question,
+        session!.userModel,
+        priorQuestions,
+      ),
       QUESTION_SYSTEM,
     );
     const parsed = parseJSON<QuestionResponse>(raw);
+    if (typeof parsed.answer !== "string" || !parsed.answer) {
+      throw new Error("Model response missing answer");
+    }
 
-    const merged: UserKnowledgeModel = {
-      level: parsed.modelUpdate.level ?? session.userModel.level,
-      confidence:
-        typeof parsed.modelUpdate.confidence === "number"
-          ? clamp01(parsed.modelUpdate.confidence)
-          : session.userModel.confidence,
-      knownConcepts: dedup([
-        ...session.userModel.knownConcepts,
-        ...(parsed.modelUpdate.knownConcepts ?? []),
-      ]),
-      gapConcepts: dedup(parsed.modelUpdate.gapConcepts ?? session.userModel.gapConcepts),
-      vocabularyLevel: parsed.modelUpdate.vocabularyLevel ?? session.userModel.vocabularyLevel,
-      reasoning: parsed.modelUpdate.reasoning ?? session.userModel.reasoning,
-    };
-
+    const merged = mergeUserModel(session!.userModel, parsed.modelUpdate);
     return NextResponse.json({ answer: parsed.answer, updatedModel: merged });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[/api/question] failed:", err);
     return NextResponse.json(
-      { error: `Failed to answer question: ${message}` },
+      { error: "Failed to answer the question. Please try again." },
       { status: 502 },
     );
   }
-}
-
-function clamp01(n: number): number {
-  return Math.max(0, Math.min(1, n));
-}
-
-function dedup(items: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const item of items) {
-    const key = item.trim().toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(item.trim());
-  }
-  return out;
 }

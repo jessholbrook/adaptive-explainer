@@ -55,11 +55,15 @@ export function buildExplanationPrompt(
   stepComplexity: string,
   userModel: UserKnowledgeModel,
   priorSteps: string[],
+  recentQuestions: string[] = [],
 ): string {
+  const questionLines = recentQuestions.length
+    ? `\nQuestions the learner asked earlier in this session (use them to gauge what to emphasize or clear up):\n${recentQuestions.map((q) => `- "${q}"`).join("\n")}\n`
+    : "";
   return `Topic: ${topic}
 Current step: "${stepTitle}" (complexity: ${stepComplexity})
 Already covered in this session: ${priorSteps.length ? priorSteps.join(" → ") : "(this is the first step)"}
-
+${questionLines}
 Learner model:
 ${modelSnapshot(userModel)}
 
@@ -77,10 +81,14 @@ export function buildQuestionAnalysisPrompt(
   stepTitle: string,
   question: string,
   userModel: UserKnowledgeModel,
+  recentQuestions: string[] = [],
 ): string {
+  const questionLines = recentQuestions.length
+    ? `\nEarlier questions from this learner:\n${recentQuestions.map((q) => `- "${q}"`).join("\n")}\n`
+    : "";
   return `Topic: ${topic}
 Current step: "${stepTitle}"
-
+${questionLines}
 Learner model BEFORE this question:
 ${modelSnapshot(userModel)}
 

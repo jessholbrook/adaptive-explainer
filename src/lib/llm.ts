@@ -38,13 +38,7 @@ export async function queryModel(
     const response = await client.messages.create({
       model: modelId,
       max_tokens: 4096,
-      system: [
-        {
-          type: "text",
-          text: systemPrompt,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
+      system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });
     const textBlock = response.content.find((b) => b.type === "text");
@@ -67,6 +61,44 @@ export async function queryModel(
     throw new Error("No response from OpenAI");
   }
   return content;
+}
+
+/** Yields the response as text chunks as the model produces them. */
+export async function* streamModel(
+  modelId: string,
+  userPrompt: string,
+  systemPrompt: string,
+): AsyncGenerator<string> {
+  if (isAnthropicModel(modelId)) {
+    const client = getAnthropic();
+    const stream = await client.messages.create({
+      model: modelId,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+      stream: true,
+    });
+    for await (const event of stream) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        yield event.delta.text;
+      }
+    }
+    return;
+  }
+
+  const client = getOpenAI();
+  const stream = await client.chat.completions.create({
+    model: modelId,
+    stream: true,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+  });
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content;
+    if (delta) yield delta;
+  }
 }
 
 export function parseJSON<T>(text: string): T {
